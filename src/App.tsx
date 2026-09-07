@@ -92,6 +92,12 @@ const formatMonth = (month: string) =>
   new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))
 
 function App() {
+  const authToken = new URLSearchParams(window.location.search).get('auth_token')
+  if (authToken) {
+    localStorage.setItem(TOKEN_KEY, authToken)
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
   const [user, setUser] = useState<User | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [isHydrated, setIsHydrated] = useState(false)
@@ -120,6 +126,11 @@ function App() {
       .then(({ user: currentUser }) => setUser(currentUser))
       .catch(() => localStorage.removeItem(TOKEN_KEY))
       .finally(() => setIsCheckingSession(false))
+  }, [])
+
+  useEffect(() => {
+    const authError = new URLSearchParams(window.location.search).get('auth_error')
+    if (authError) setAuthMessage('Não foi possível entrar com o Google. Confira as configurações OAuth.')
   }, [])
 
   useEffect(() => {
@@ -494,7 +505,7 @@ function App() {
           {authMode === 'login' && (
             <>
               <div className="auth-divider"><span>ou</span></div>
-              <button type="button" className="google-button" onClick={() => setAuthMessage('Login com Google será conectado em uma próxima etapa.')}>Entrar com Google</button>
+              <button type="button" className="google-button" onClick={() => { window.location.href = '/api/auth/google' }}>Entrar com Google</button>
             </>
           )}
 
