@@ -106,6 +106,8 @@ const parseCurrencyInput = (value: string) => {
 const formatMonth = (month: string) =>
   new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))
 
+const getCurrentMonth = () => new Date().toISOString().slice(0, 7)
+
 const normalizeCategory = (category: string) =>
   category === 'Casa' ? 'Casa/Apartamento/Aluguel' : category
 
@@ -154,7 +156,9 @@ function App() {
   const [keepConnected, setKeepConnected] = useState(true)
   const [loginForm, setLoginForm] = useState({ name: '', email: '', password: '' })
   const [selectedTab, setSelectedTab] = useState('Resumo do mês')
-  const [selectedMonth, setSelectedMonth] = useState('2026-08')
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
+  const [firstUseMonth, setFirstUseMonth] = useState(getCurrentMonth())
+  const [previousMonthsEnabled, setPreviousMonthsEnabled] = useState(false)
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>(initialFixedExpenses)
   const [incomes, setIncomes] = useState<Income[]>(initialIncomes)
@@ -186,6 +190,8 @@ function App() {
     apiRequest<{
       selectedTab?: string
       selectedMonth?: string
+      firstUseMonth?: string
+      previousMonthsEnabled?: boolean
       transactions: Transaction[]
       fixedExpenses: FixedExpense[]
       incomes: Income[]
@@ -193,7 +199,11 @@ function App() {
     }>('/data')
       .then((data) => {
         setSelectedTab(data.selectedTab ?? 'Resumo do mês')
-        setSelectedMonth(data.selectedMonth ?? '2026-08')
+        const hasFinancialData = data.transactions.length > 0 || data.fixedExpenses.length > 0 || data.incomes.length > 0 || data.goals.length > 0
+        const storedFirstUseMonth = data.firstUseMonth ?? (hasFinancialData ? data.selectedMonth : getCurrentMonth()) ?? getCurrentMonth()
+        setFirstUseMonth(storedFirstUseMonth)
+        setPreviousMonthsEnabled(data.previousMonthsEnabled ?? storedFirstUseMonth < getCurrentMonth())
+        setSelectedMonth(hasFinancialData ? (data.selectedMonth ?? getCurrentMonth()) : getCurrentMonth())
         setTransactions((data.transactions ?? initialTransactions).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
         setFixedExpenses((data.fixedExpenses ?? initialFixedExpenses).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
         setIncomes(addRecurringIncomeForMonth((data.incomes ?? initialIncomes).map((item) => ({
@@ -212,9 +222,9 @@ function App() {
 
     void apiRequest('/data', {
       method: 'PUT',
-      body: JSON.stringify({ selectedTab, selectedMonth, transactions, fixedExpenses, incomes, goals }),
+      body: JSON.stringify({ selectedTab, selectedMonth, firstUseMonth, previousMonthsEnabled, transactions, fixedExpenses, incomes, goals }),
     })
-  }, [user, isHydrated, selectedTab, selectedMonth, transactions, fixedExpenses, incomes, goals])
+  }, [user, isHydrated, selectedTab, selectedMonth, firstUseMonth, previousMonthsEnabled, transactions, fixedExpenses, incomes, goals])
 
   const [transactionForm, setTransactionForm] = useState({
     name: '',
@@ -314,11 +324,21 @@ function App() {
   )
 
   const moveMonth = (offset: number) => {
+    if (offset < 0 && !previousMonthsEnabled) return
     const date = new Date(`${selectedMonth}-01T12:00:00`)
     date.setMonth(date.getMonth() + offset)
     const nextMonth = date.toISOString().slice(0, 7)
     setIncomes((current) => addRecurringIncomeForMonth(current, nextMonth))
     setSelectedMonth(nextMonth)
+  }
+
+  const includePreviousMonth = () => {
+    setPreviousMonthsEnabled(true)
+    const date = new Date(`${selectedMonth}-01T12:00:00`)
+    date.setMonth(date.getMonth() - 1)
+    const previousMonth = date.toISOString().slice(0, 7)
+    setIncomes((current) => addRecurringIncomeForMonth(current, previousMonth))
+    setSelectedMonth(previousMonth)
   }
 
   const handleAddTransaction = () => {
@@ -525,6 +545,8 @@ function App() {
       exportedAt: new Date().toISOString(),
       selectedTab,
       selectedMonth,
+      firstUseMonth,
+      previousMonthsEnabled,
       transactions,
       fixedExpenses,
       incomes,
@@ -557,7 +579,9 @@ function App() {
         }
 
         setSelectedTab(imported.selectedTab ?? 'Resumo do mês')
-        setSelectedMonth(imported.selectedMonth ?? '2026-08')
+        setFirstUseMonth(imported.firstUseMonth ?? imported.selectedMonth ?? getCurrentMonth())
+        setPreviousMonthsEnabled(true)
+        setSelectedMonth(imported.selectedMonth ?? getCurrentMonth())
         setTransactions(imported.transactions.map((item: Transaction) => ({ ...item, category: normalizeCategory(item.category) })))
         setFixedExpenses(imported.fixedExpenses.map((item: FixedExpense) => ({ ...item, category: normalizeCategory(item.category) })))
         setIncomes(imported.incomes.map((item: Income) => ({
@@ -665,7 +689,11 @@ function App() {
           <div className="month-header">
             <h2>{formatMonth(selectedMonth)}</h2>
             <div className="month-actions">
-              <button type="button" className="mini-button" onClick={() => moveMonth(-1)}>&lt; anterior</button>
+              {previousMonthsEnabled ? (
+                <button type="button" className="mini-button" onClick={() => moveMonth(-1)}>&lt; anterior</button>
+              ) : (
+                <button type="button" className="mini-button include-month-button" onClick={includePreviousMonth}>+ incluir mês anterior</button>
+              )}
               <button type="button" className="mini-button" onClick={() => moveMonth(1)}>próximo &gt;</button>
             </div>
           </div>

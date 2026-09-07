@@ -460,7 +460,7 @@
 
 .category-row {
   display: grid;
-  grid-template-columns: 120px 120px 1fr;
+  grid-template-columns: minmax(170px, 1.2fr) minmax(90px, 0.7fr) minmax(120px, 1fr);
   align-items: center;
   gap: 10px;
 }
@@ -468,6 +468,8 @@
 .category-name,
 .category-value {
   font-size: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .category-bar-wrap,
@@ -628,6 +630,10 @@ td {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.card-item > div {
+  min-width: 0;
+}
+
 .card-item strong,
 .goal-head strong {
   display: block;
@@ -638,6 +644,7 @@ td {
 .goal-head span {
   font-size: 0.82rem;
   color: #403d3b;
+  overflow-wrap: anywhere;
 }
 
 .status-button {
@@ -741,7 +748,11 @@ td {
   }
 
   .category-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(90px, auto);
+  }
+
+  .category-row .category-bar-wrap {
+    grid-column: 1 / -1;
   }
 
   .alert-item,
