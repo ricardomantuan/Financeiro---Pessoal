@@ -99,6 +99,66 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
+const redirectToGoogle = (req, res) => {
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID || '',
+    redirect_uri: process.env.GOOGLE_CALLBACK_URL || '',
+    response_type: 'code',
+    scope: 'openid email profile',
+    access_type: 'offline',
+    prompt: 'select_account',
+  })
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+}
+
+app.get('/api/auth/google', redirectToGoogle)
+app.get('/api/auth/google/', redirectToGoogle)
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  try {
+    const code = String(req.query.code || '')
+    if (!code || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_CALLBACK_URL) {
+      return res.redirect('/?auth_error=google_config')
+    }
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: process.env.GOOGLE_CALLBACK_URL,
+        grant_type: 'authorization_code',
+      }),
+    })
+    const tokenData = await tokenResponse.json()
+    if (!tokenResponse.ok) return res.redirect('/?auth_error=google_token')
+
+    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    })
+    const profile = await profileResponse.json()
+    if (!profileResponse.ok || !profile.email || !profile.sub) return res.redirect('/?auth_error=google_profile')
+
+    const existing = await pool.query('SELECT id, name, email FROM users WHERE email = $1 OR google_id = $2', [profile.email.toLowerCase(), profile.sub])
+    let user = existing.rows[0]
+    if (user) {
+      const updated = await pool.query('UPDATE users SET google_id = $1 WHERE id = $2 RETURNING id, name, email', [profile.sub, user.id])
+      user = updated.rows[0]
+    } else {
+      const created = await pool.query('INSERT INTO users (name, email, google_id) VALUES ($1, $2, $3) RETURNING id, name, email', [profile.name || profile.email.split('@')[0], profile.email.toLowerCase(), profile.sub])
+      user = created.rows[0]
+      await pool.query('INSERT INTO finance_data (user_id, data) VALUES ($1, $2)', [user.id, JSON.stringify(defaultData)])
+    }
+
+    const token = issueToken(user)
+    res.redirect(`/?auth_token=${encodeURIComponent(token)}`)
+  } catch {
+    res.redirect('/?auth_error=google_callback')
+  }
+})
+
 app.get('/api/auth/me', auth, async (req, res) => {
   const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [req.user.sub])
   if (!result.rows[0]) return res.status(401).json({ error: 'Usuário não encontrado.' })
@@ -169,64 +229,4 @@ initDatabase().then(() => {
 }).catch((error) => {
   console.error('Falha ao iniciar banco de dados:', error)
   process.exit(1)
-})
-
-const redirectToGoogle = (req, res) => {
-  const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID || '',
-    redirect_uri: process.env.GOOGLE_CALLBACK_URL || '',
-    response_type: 'code',
-    scope: 'openid email profile',
-    access_type: 'offline',
-    prompt: 'select_account',
-  })
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
-}
-
-app.get('/api/auth/google', redirectToGoogle)
-app.get('/api/auth/google/', redirectToGoogle)
-
-app.get('/api/auth/google/callback', async (req, res) => {
-  try {
-    const code = String(req.query.code || '')
-    if (!code || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_CALLBACK_URL) {
-      return res.redirect('/?auth_error=google_config')
-    }
-
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: process.env.GOOGLE_CALLBACK_URL,
-        grant_type: 'authorization_code',
-      }),
-    })
-    const tokenData = await tokenResponse.json()
-    if (!tokenResponse.ok) return res.redirect('/?auth_error=google_token')
-
-    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    })
-    const profile = await profileResponse.json()
-    if (!profileResponse.ok || !profile.email || !profile.sub) return res.redirect('/?auth_error=google_profile')
-
-    const existing = await pool.query('SELECT id, name, email FROM users WHERE email = $1 OR google_id = $2', [profile.email.toLowerCase(), profile.sub])
-    let user = existing.rows[0]
-    if (user) {
-      const updated = await pool.query('UPDATE users SET google_id = $1 WHERE id = $2 RETURNING id, name, email', [profile.sub, user.id])
-      user = updated.rows[0]
-    } else {
-      const created = await pool.query('INSERT INTO users (name, email, google_id) VALUES ($1, $2, $3) RETURNING id, name, email', [profile.name || profile.email.split('@')[0], profile.email.toLowerCase(), profile.sub])
-      user = created.rows[0]
-      await pool.query('INSERT INTO finance_data (user_id, data) VALUES ($1, $2)', [user.id, JSON.stringify(defaultData)])
-    }
-
-    const token = issueToken(user)
-    res.redirect(`/?auth_token=${encodeURIComponent(token)}`)
-  } catch {
-    res.redirect('/?auth_error=google_callback')
-  }
 })
