@@ -244,6 +244,7 @@ function App() {
     installments: '1',
     firstDueDate: `${selectedMonth}-01`,
   })
+  const [showCreditForm, setShowCreditForm] = useState(false)
 
   const monthTransactions = useMemo(
     () => transactions.filter((item) => item.date.startsWith(selectedMonth)),
@@ -360,19 +361,20 @@ function App() {
 
   const handleAddIncome = () => {
     const value = parseCurrencyInput(incomeForm.value)
-    if (!incomeForm.name.trim() || value <= 0) return
+    const incomeName = incomeForm.name.trim() || incomeForm.category || 'Entrada'
+    if (value <= 0) return
 
     setIncomes((current) => [
       ...current,
       {
         id: Date.now(),
-        name: incomeForm.name,
+        name: incomeName,
         value,
         date: incomeForm.cutoffDate,
         category: incomeForm.category,
         observation: incomeForm.observation.trim(),
         effectiveFrom: incomeForm.cutoffDate,
-        recurring: incomeForm.category === 'Salário' || isSalary(incomeForm.name),
+        recurring: incomeForm.category === 'Salário' || isSalary(incomeName),
       },
     ])
 
@@ -411,6 +413,7 @@ function App() {
 
     setTransactions((current) => [...current, ...loanTransactions])
     setCreditForm({ amount: '', interestRate: '', installments: '1', firstDueDate: `${selectedMonth}-01` })
+    setShowCreditForm(false)
   }
 
   const handleDeleteTransaction = (id: number) => {
@@ -906,9 +909,10 @@ function App() {
 
           <div className="form-grid compact-form">
             <input
-              value={incomeForm.name}
-              onChange={(event) => setIncomeForm({ ...incomeForm, name: event.target.value })}
-              placeholder="Fonte da entrada"
+              value={incomeForm.value}
+              onChange={(event) => setIncomeForm({ ...incomeForm, value: formatCurrencyInput(event.target.value) })}
+              inputMode="numeric"
+              placeholder="Valor: R$ 0,00"
             />
             <select
               value={incomeForm.category}
@@ -919,10 +923,9 @@ function App() {
               <option>Fonte de outra natureza</option>
             </select>
             <input
-              value={incomeForm.value}
-              onChange={(event) => setIncomeForm({ ...incomeForm, value: formatCurrencyInput(event.target.value) })}
-              inputMode="numeric"
-              placeholder="R$ 0,00"
+              value={incomeForm.name}
+              onChange={(event) => setIncomeForm({ ...incomeForm, name: event.target.value })}
+              placeholder="Descrição da entrada (opcional)"
             />
             <input
               value={incomeForm.cutoffDate}
@@ -942,12 +945,21 @@ function App() {
             </button>
           </div>
 
-          <div className="credit-box">
-            <div className="section-header">
-              <h3>Crédito emprestado Nubank</h3>
-              <small>Informe a taxa exibida no seu contrato para calcular as parcelas.</small>
-            </div>
-            <div className="form-grid compact-form">
+          <button type="button" className="credit-action" onClick={() => setShowCreditForm(true)}>
+            + Lançar crédito emprestado Nubank
+          </button>
+
+          {showCreditForm && (
+            <div className="credit-modal-backdrop" role="presentation" onClick={() => setShowCreditForm(false)}>
+              <div className="credit-box credit-modal" role="dialog" aria-modal="true" aria-labelledby="credit-title" onClick={(event) => event.stopPropagation()}>
+                <div className="section-header">
+                  <div>
+                    <h3 id="credit-title">Crédito emprestado Nubank</h3>
+                    <small>Informe a taxa exibida no seu contrato para calcular as parcelas.</small>
+                  </div>
+                  <button type="button" className="modal-close" onClick={() => setShowCreditForm(false)}>Fechar</button>
+                </div>
+                <div className="form-grid compact-form">
               <input
                 value={creditForm.amount}
                 onChange={(event) => setCreditForm({ ...creditForm, amount: formatCurrencyInput(event.target.value) })}
@@ -976,8 +988,10 @@ function App() {
               <button type="button" onClick={handleAddCreditLoan} className="primary-action">
                 Lançar crédito e parcelas
               </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="card-list">
             {incomes.map((item) => (

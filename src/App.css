@@ -138,10 +138,35 @@
 }
 
 .credit-box {
-  margin: 22px 0;
   border: 1px dashed #6d665f;
   padding: 16px;
   background: rgba(255, 255, 255, 0.16);
+}
+
+.credit-action {
+  border: 1px solid #2e2d2c;
+  background: #2e2d2c;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  margin: 18px 0;
+  padding: 10px 14px;
+}
+
+.credit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgba(41, 39, 37, 0.38);
+  padding: 20px;
+}
+
+.credit-modal {
+  width: min(760px, 100%);
+  background: #f4eee5;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2);
 }
 
 .credit-box .section-header {
@@ -154,6 +179,15 @@
 
 .credit-box .section-header h3 {
   font-size: 1.35rem;
+}
+
+.modal-close {
+  border: 1px solid #302e2c;
+  background: transparent;
+  color: #302e2c;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 10px;
 }
 
 .credit-box small {
