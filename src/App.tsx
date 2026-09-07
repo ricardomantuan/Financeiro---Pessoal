@@ -10,7 +10,7 @@ type User = {
 }
 
 const apiRequest = async <T,>(path: string, options: RequestInit = {}) => {
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
   const response = await fetch(`/api${path}`, {
     ...options,
     headers: {
@@ -99,6 +99,7 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | 'reset'>(resetToken ? 'reset' : 'login')
   const [authMessage, setAuthMessage] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
+  const [keepConnected, setKeepConnected] = useState(true)
   const [loginForm, setLoginForm] = useState({ name: '', email: '', password: '' })
   const [selectedTab, setSelectedTab] = useState('Resumo do mês')
   const [selectedMonth, setSelectedMonth] = useState('2026-08')
@@ -109,7 +110,7 @@ function App() {
   const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
     if (!token) {
       setIsCheckingSession(false)
       return
@@ -350,7 +351,13 @@ function App() {
         method: 'POST',
         body: JSON.stringify(loginForm),
       })
-      localStorage.setItem(TOKEN_KEY, response.token)
+      if (keepConnected) {
+        localStorage.setItem(TOKEN_KEY, response.token)
+        sessionStorage.removeItem(TOKEN_KEY)
+      } else {
+        sessionStorage.setItem(TOKEN_KEY, response.token)
+        localStorage.removeItem(TOKEN_KEY)
+      }
       setUser(response.user)
       setLoginForm({ name: '', email: '', password: '' })
     } catch (error) {
@@ -362,6 +369,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
     setUser(null)
     setIsHydrated(false)
   }
@@ -463,15 +471,37 @@ function App() {
 
           {authMessage && <p className="auth-message">{authMessage}</p>}
 
+          {authMode === 'login' && (
+            <div className="auth-options">
+              <label className="remember-option">
+                <input
+                  type="checkbox"
+                  checked={keepConnected}
+                  onChange={(event) => setKeepConnected(event.target.checked)}
+                />
+                <span>manter conectado</span>
+              </label>
+              <button type="button" className="forgot-link" onClick={() => { setAuthMode('forgot'); setAuthMessage('') }}>
+                esqueci a senha
+              </button>
+            </div>
+          )}
+
           <button type="button" className="primary-action auth-button" onClick={handleAuth} disabled={authBusy}>
-            {authBusy ? 'Aguarde...' : authMode === 'register' ? 'Criar conta' : authMode === 'forgot' ? 'Enviar instruções' : 'Entrar'}
+            {authBusy ? 'Aguarde...' : authMode === 'register' ? 'Criar conta' : authMode === 'forgot' ? 'Enviar instruções' : authMode === 'reset' ? 'Redefinir senha' : 'Entrar'}
           </button>
+
+          {authMode === 'login' && (
+            <>
+              <div className="auth-divider"><span>ou</span></div>
+              <button type="button" className="google-button" onClick={() => setAuthMessage('Login com Google será conectado em uma próxima etapa.')}>Entrar com Google</button>
+            </>
+          )}
 
           <div className="auth-links">
             {authMode !== 'login' && authMode !== 'reset' && <button type="button" onClick={() => { setAuthMode('login'); setAuthMessage('') }}>Voltar para entrar</button>}
             {authMode === 'reset' && <button type="button" onClick={() => { setAuthMode('login'); setAuthMessage(''); window.history.replaceState({}, '', window.location.pathname) }}>Voltar para entrar</button>}
-            {authMode === 'login' && <button type="button" onClick={() => { setAuthMode('register'); setAuthMessage('') }}>Criar uma conta</button>}
-            {authMode === 'login' && <button type="button" onClick={() => { setAuthMode('forgot'); setAuthMessage('') }}>Esqueci minha senha</button>}
+            {authMode === 'login' && <span>Não tem conta? <button type="button" onClick={() => { setAuthMode('register'); setAuthMessage('') }}>Criar agora</button></span>}
           </div>
         </div>
       </div>
