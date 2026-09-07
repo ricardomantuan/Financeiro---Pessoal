@@ -171,8 +171,7 @@ initDatabase().then(() => {
   process.exit(1)
 })
 
-app.use('/api/auth/google', (req, res, next) => {
-  if (req.method !== 'GET' || req.path !== '/') return next()
+const redirectToGoogle = (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || '',
     redirect_uri: process.env.GOOGLE_CALLBACK_URL || '',
@@ -182,7 +181,10 @@ app.use('/api/auth/google', (req, res, next) => {
     prompt: 'select_account',
   })
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
-})
+}
+
+app.get('/api/auth/google', redirectToGoogle)
+app.get('/api/auth/google/', redirectToGoogle)
 
 app.get('/api/auth/google/callback', async (req, res) => {
   try {
