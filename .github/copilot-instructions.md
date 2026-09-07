@@ -1,0 +1,5 @@
+- Verify the project scaffolding is in place.
+- Keep the dashboard focused on financial management metrics, balances, and cash flow.
+- Prefer a clean, responsive layout with cards, tables, and simple charts built in CSS.
+- Document setup steps in the project README.
+- Validate with a production build before considering the task complete.
