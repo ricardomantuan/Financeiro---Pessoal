@@ -65,6 +65,8 @@ const initDatabase = async () => {
 
 app.use(express.json({ limit: '2mb' }))
 
+app.get('/api/health', (req, res) => res.json({ ok: true, service: 'projeto-financeiro' }))
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body
@@ -169,7 +171,8 @@ initDatabase().then(() => {
   process.exit(1)
 })
 
-app.get('/api/auth/google', (req, res) => {
+app.use('/api/auth/google', (req, res, next) => {
+  if (req.method !== 'GET' || req.path !== '/') return next()
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || '',
     redirect_uri: process.env.GOOGLE_CALLBACK_URL || '',
