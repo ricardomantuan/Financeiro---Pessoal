@@ -89,6 +89,17 @@ const initialGoals: Goal[] = [
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
+const formatCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '')
+  if (!digits) return ''
+  return formatCurrency(Number(digits) / 100)
+}
+
+const parseCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '')
+  return digits ? Number(digits) / 100 : 0
+}
+
 const formatMonth = (month: string) =>
   new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))
 
@@ -274,8 +285,8 @@ function App() {
   }
 
   const handleAddTransaction = () => {
-    const value = Number(transactionForm.amount)
-    if (!transactionForm.name.trim() || Number.isNaN(value) || value <= 0) return
+    const value = parseCurrencyInput(transactionForm.amount)
+    if (!transactionForm.name.trim() || value <= 0) return
 
     setTransactions((current) => [
       ...current,
@@ -298,8 +309,8 @@ function App() {
   }
 
   const handleAddFixedExpense = () => {
-    const value = Number(fixedForm.value)
-    if (!fixedForm.name.trim() || Number.isNaN(value) || value <= 0) return
+    const value = parseCurrencyInput(fixedForm.value)
+    if (!fixedForm.name.trim() || value <= 0) return
 
     setFixedExpenses((current) => [
       ...current,
@@ -322,8 +333,8 @@ function App() {
   }
 
   const handleAddIncome = () => {
-    const value = Number(incomeForm.value)
-    if (!incomeForm.name.trim() || Number.isNaN(value) || value <= 0) return
+    const value = parseCurrencyInput(incomeForm.value)
+    if (!incomeForm.name.trim() || value <= 0) return
 
     setIncomes((current) => [
       ...current,
@@ -681,9 +692,9 @@ function App() {
             />
             <input
               value={transactionForm.amount}
-              onChange={(event) => setTransactionForm({ ...transactionForm, amount: event.target.value })}
-              type="number"
-              placeholder="Valor"
+              onChange={(event) => setTransactionForm({ ...transactionForm, amount: formatCurrencyInput(event.target.value) })}
+              inputMode="numeric"
+              placeholder="R$ 0,00"
             />
             <select
               value={transactionForm.category}
@@ -762,9 +773,9 @@ function App() {
             />
             <input
               value={fixedForm.value}
-              onChange={(event) => setFixedForm({ ...fixedForm, value: event.target.value })}
-              type="number"
-              placeholder="Valor"
+              onChange={(event) => setFixedForm({ ...fixedForm, value: formatCurrencyInput(event.target.value) })}
+              inputMode="numeric"
+              placeholder="R$ 0,00"
             />
             <select
               value={fixedForm.category}
@@ -826,9 +837,9 @@ function App() {
             />
             <input
               value={incomeForm.value}
-              onChange={(event) => setIncomeForm({ ...incomeForm, value: event.target.value })}
-              type="number"
-              placeholder="Valor"
+              onChange={(event) => setIncomeForm({ ...incomeForm, value: formatCurrencyInput(event.target.value) })}
+              inputMode="numeric"
+              placeholder="R$ 0,00"
             />
             <button type="button" onClick={handleAddIncome} className="primary-action">
               + Nova entrada
