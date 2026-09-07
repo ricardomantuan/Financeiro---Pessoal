@@ -68,9 +68,9 @@ const initialTransactions: Transaction[] = [
 ]
 
 const initialFixedExpenses: FixedExpense[] = [
-  { id: 1, name: 'Aluguel', category: 'Casa', value: 1700, dueDay: 5, paid: true },
-  { id: 2, name: 'Internet', category: 'Casa', value: 120, dueDay: 10, paid: true },
-  { id: 3, name: 'Academia', category: 'Saúde', value: 130, dueDay: 30, paid: false },
+  { id: 1, name: 'Aluguel', category: 'Casa/Apartamento/Aluguel', value: 1700, dueDay: 5, paid: true },
+  { id: 2, name: 'Internet', category: 'Casa/Apartamento/Aluguel', value: 120, dueDay: 10, paid: true },
+  { id: 3, name: 'Academia', category: 'Lazer', value: 130, dueDay: 30, paid: false },
   { id: 4, name: 'Spotify + Netflix', category: 'Assinaturas', value: 79, dueDay: 15, paid: true },
 ]
 
@@ -90,6 +90,9 @@ const formatCurrency = (value: number) =>
 
 const formatMonth = (month: string) =>
   new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))
+
+const normalizeCategory = (category: string) =>
+  category === 'Casa' ? 'Casa/Apartamento/Aluguel' : category
 
 function App() {
   const authToken = new URLSearchParams(window.location.search).get('auth_token')
@@ -148,8 +151,8 @@ function App() {
       .then((data) => {
         setSelectedTab(data.selectedTab ?? 'Resumo do mês')
         setSelectedMonth(data.selectedMonth ?? '2026-08')
-        setTransactions(data.transactions ?? initialTransactions)
-        setFixedExpenses(data.fixedExpenses ?? initialFixedExpenses)
+        setTransactions((data.transactions ?? initialTransactions).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
+        setFixedExpenses((data.fixedExpenses ?? initialFixedExpenses).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
         setIncomes(data.incomes ?? initialIncomes)
         setGoals(data.goals ?? initialGoals)
       })
@@ -174,7 +177,7 @@ function App() {
 
   const [fixedForm, setFixedForm] = useState({
     name: '',
-    category: 'Casa',
+    category: 'Casa/Apartamento/Aluguel',
     value: '',
     dueDay: '5',
   })
@@ -221,7 +224,7 @@ function App() {
       { name: 'Comida', total: 900, color: '#d76d4d' },
       { name: 'Lazer', total: 700, color: '#b7b1aa' },
       { name: 'Transporte', total: 500, color: '#cfcbc4' },
-      { name: 'Casa', total: 400, color: '#d9d5cf' },
+      { name: 'Casa/Apartamento/Aluguel', total: 400, color: '#d9d5cf' },
       { name: 'Assinaturas', total: 200, color: '#d76d4d' },
     ]
 
@@ -289,7 +292,7 @@ function App() {
 
     setFixedForm({
       name: '',
-      category: 'Casa',
+      category: 'Casa/Apartamento/Aluguel',
       value: '',
       dueDay: '5',
     })
@@ -436,8 +439,8 @@ function App() {
 
         setSelectedTab(imported.selectedTab ?? 'Resumo do mês')
         setSelectedMonth(imported.selectedMonth ?? '2026-08')
-        setTransactions(imported.transactions)
-        setFixedExpenses(imported.fixedExpenses)
+        setTransactions(imported.transactions.map((item: Transaction) => ({ ...item, category: normalizeCategory(item.category) })))
+        setFixedExpenses(imported.fixedExpenses.map((item: FixedExpense) => ({ ...item, category: normalizeCategory(item.category) })))
         setIncomes(imported.incomes)
         setGoals(imported.goals)
       } catch {
@@ -666,7 +669,7 @@ function App() {
               <option>Comida</option>
               <option>Lazer</option>
               <option>Transporte</option>
-              <option>Casa</option>
+              <option>Casa/Apartamento/Aluguel</option>
               <option>Assinaturas</option>
               <option>Salário</option>
             </select>
@@ -744,9 +747,11 @@ function App() {
               value={fixedForm.category}
               onChange={(event) => setFixedForm({ ...fixedForm, category: event.target.value })}
             >
-              <option>Casa</option>
-              <option>Saúde</option>
+              <option>Comida</option>
+              <option>Lazer</option>
+              <option>Transporte</option>
               <option>Assinaturas</option>
+              <option>Casa/Apartamento/Aluguel</option>
             </select>
             <input
               value={fixedForm.dueDay}
