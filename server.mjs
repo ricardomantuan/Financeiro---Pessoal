@@ -102,15 +102,41 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 app.post('/api/auth/forgot-password', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
-  const result = await pool.query('SELECT id FROM users WHERE email = $1', [email])
+  const result = await pool.query('SELECT id, name FROM users WHERE email = $1', [email])
   if (result.rows[0]) {
     const rawToken = randomBytes(32).toString('hex')
     const tokenHash = createHash('sha256').update(rawToken).digest('hex')
     await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [result.rows[0].id])
     await pool.query("INSERT INTO password_reset_tokens (token_hash, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '30 minutes')", [tokenHash, result.rows[0].id])
-    if (process.env.RESET_URL) console.log(`Link de recuperação disponível para envio por e-mail: ${process.env.RESET_URL}?token=${rawToken}`)
+    const resetLink = `${process.env.RESET_URL || ''}?token=${rawToken}`
+    if (process.env.RESEND_API_KEY && process.env.RESEND_FROM && process.env.RESET_URL) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: process.env.RESEND_FROM,
+          to: [email],
+          subject: 'Redefinição de senha | Meu Dinheiro',
+          html: `<p>Olá, ${result.rows[0].name}.</p><p><a href="${resetLink}">Clique aqui para criar uma nova senha</a>. O link expira em 30 minutos.</p>`,
+        }),
+      })
+    } else {
+      console.log(`Configure RESEND_API_KEY, RESEND_FROM e RESET_URL para enviar: ${resetLink}`)
+    }
   }
   res.json({ message: 'Se o e-mail existir, enviaremos as instruções de recuperação.' })
+})
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const tokenHash = createHash('sha256').update(String(req.body.token || '')).digest('hex')
+  const password = String(req.body.password || '')
+  if (password.length < 8) return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 8 caracteres.' })
+  const result = await pool.query('SELECT user_id FROM password_reset_tokens WHERE token_hash = $1 AND expires_at > NOW()', [tokenHash])
+  if (!result.rows[0]) return res.status(400).json({ error: 'Link de recuperação inválido ou expirado.' })
+  const passwordHash = await bcrypt.hash(password, 12)
+  await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, result.rows[0].user_id])
+  await pool.query('DELETE FROM password_reset_tokens WHERE token_hash = $1', [tokenHash])
+  res.json({ message: 'Senha redefinida com sucesso.' })
 })
 
 app.get('/api/data', auth, async (req, res) => {

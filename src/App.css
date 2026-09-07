@@ -46,6 +46,29 @@
   margin-top: 6px;
 }
 
+.auth-message {
+  border-left: 3px solid #8eb6a9;
+  padding: 8px 10px;
+  color: #433f3b;
+}
+
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.auth-links button {
+  border: 0;
+  background: transparent;
+  color: #433f3b;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
 .app-page {
   min-height: 100vh;
   background: #ece4d9;

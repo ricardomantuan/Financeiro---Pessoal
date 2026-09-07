@@ -40,7 +40,15 @@ npm run build
 
 ## Limites atuais
 
-Os dados ainda são armazenados no navegador. O login é local e não valida usuários em um servidor. Backend, banco de dados e autenticação real ficam para a próxima etapa.
+O sistema agora usa API Express, PostgreSQL e autenticação JWT. As senhas são armazenadas apenas como hash bcrypt e os dados financeiros são separados por usuário.
+
+Para ativar o envio real de recuperação de senha, configure na Railway:
+
+- `RESEND_API_KEY`: chave da conta Resend
+- `RESEND_FROM`: remetente verificado, como `Meu Dinheiro <contato@seudominio.com>`
+- `RESET_URL`: URL pública do sistema
+
+Sem essas variáveis, o pedido de recuperação continua protegido e o link fica disponível apenas nos logs do serviço para configuração inicial.
 
 ## Estrutura principal
 

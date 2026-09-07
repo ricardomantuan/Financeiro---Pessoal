@@ -95,7 +95,8 @@ function App() {
   const [user, setUser] = useState<User | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [isHydrated, setIsHydrated] = useState(false)
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login')
+  const resetToken = new URLSearchParams(window.location.search).get('token')
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | 'reset'>(resetToken ? 'reset' : 'login')
   const [authMessage, setAuthMessage] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [loginForm, setLoginForm] = useState({ name: '', email: '', password: '' })
@@ -333,6 +334,17 @@ function App() {
         return
       }
 
+      if (authMode === 'reset') {
+        const response = await apiRequest<{ message: string }>('/auth/reset-password', {
+          method: 'POST',
+          body: JSON.stringify({ token: resetToken, password: loginForm.password }),
+        })
+        setAuthMode('login')
+        setAuthMessage(response.message)
+        window.history.replaceState({}, '', window.location.pathname)
+        return
+      }
+
       const endpoint = authMode === 'register' ? '/auth/register' : '/auth/login'
       const response = await apiRequest<{ user: User; token: string }>(endpoint, {
         method: 'POST',
@@ -414,7 +426,7 @@ function App() {
       <div className="auth-view">
         <div className="auth-card">
           <h1>meu dinheiro</h1>
-          <p>{authMode === 'register' ? 'Crie sua conta financeira' : authMode === 'forgot' ? 'Recupere o acesso à sua conta' : 'Entre para ver seu painel financeiro'}</p>
+          <p>{authMode === 'register' ? 'Crie sua conta financeira' : authMode === 'forgot' ? 'Recupere o acesso à sua conta' : authMode === 'reset' ? 'Crie uma nova senha' : 'Entre para ver seu painel financeiro'}</p>
 
           {authMode === 'register' && (
             <label>
@@ -427,7 +439,7 @@ function App() {
             </label>
           )}
 
-          <label>
+          {authMode !== 'reset' && <label>
             E-mail
             <input
               type="email"
@@ -435,7 +447,7 @@ function App() {
               onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })}
               placeholder="voce@email.com"
             />
-          </label>
+          </label>}
 
           {authMode !== 'forgot' && (
             <label>
@@ -456,7 +468,8 @@ function App() {
           </button>
 
           <div className="auth-links">
-            {authMode !== 'login' && <button type="button" onClick={() => { setAuthMode('login'); setAuthMessage('') }}>Voltar para entrar</button>}
+            {authMode !== 'login' && authMode !== 'reset' && <button type="button" onClick={() => { setAuthMode('login'); setAuthMessage('') }}>Voltar para entrar</button>}
+            {authMode === 'reset' && <button type="button" onClick={() => { setAuthMode('login'); setAuthMessage(''); window.history.replaceState({}, '', window.location.pathname) }}>Voltar para entrar</button>}
             {authMode === 'login' && <button type="button" onClick={() => { setAuthMode('register'); setAuthMessage('') }}>Criar uma conta</button>}
             {authMode === 'login' && <button type="button" onClick={() => { setAuthMode('forgot'); setAuthMessage('') }}>Esqueci minha senha</button>}
           </div>
