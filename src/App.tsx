@@ -505,7 +505,7 @@ function App() {
           {authMode === 'login' && (
             <>
               <div className="auth-divider"><span>ou</span></div>
-              <button type="button" className="google-button" onClick={() => { window.location.href = '/api/auth/google' }}>Entrar com Google</button>
+              <button type="button" className="google-button" onClick={() => { window.location.href = '/api/auth/google/' }}>Entrar com Google</button>
             </>
           )}
 
