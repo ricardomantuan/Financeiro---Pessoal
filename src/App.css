@@ -137,6 +137,29 @@
   text-decoration: underline;
 }
 
+.credit-box {
+  margin: 22px 0;
+  border: 1px dashed #6d665f;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.credit-box .section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.credit-box .section-header h3 {
+  font-size: 1.35rem;
+}
+
+.credit-box small {
+  color: #665f59;
+}
+
 .app-page {
   min-height: 100vh;
   background: #ece4d9;

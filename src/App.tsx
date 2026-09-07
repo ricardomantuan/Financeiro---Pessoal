@@ -111,6 +111,12 @@ const normalizeCategory = (category: string) =>
 
 const isSalary = (name: string) => name.toLowerCase().includes('salário') || name.toLowerCase().includes('salario')
 
+const addMonthsToDate = (dateString: string, months: number) => {
+  const date = new Date(`${dateString}T12:00:00`)
+  date.setMonth(date.getMonth() + months)
+  return date.toISOString().slice(0, 10)
+}
+
 const addRecurringIncomeForMonth = (items: Income[], month: string) => {
   const recurringItems = [...new Map(
     items
@@ -230,6 +236,13 @@ function App() {
     category: 'Salário' as Income['category'],
     observation: '',
     cutoffDate: '2026-08-01',
+  })
+
+  const [creditForm, setCreditForm] = useState({
+    amount: '',
+    interestRate: '',
+    installments: '1',
+    firstDueDate: `${selectedMonth}-01`,
   })
 
   const monthTransactions = useMemo(
@@ -364,6 +377,40 @@ function App() {
     ])
 
     setIncomeForm({ name: '', value: '', category: 'Salário', observation: '', cutoffDate: `${selectedMonth}-01` })
+  }
+
+  const handleAddCreditLoan = () => {
+    const principal = parseCurrencyInput(creditForm.amount)
+    const monthlyRate = Number(creditForm.interestRate.replace(',', '.')) / 100
+    const installments = Math.max(1, Number(creditForm.installments))
+    if (principal <= 0 || Number.isNaN(monthlyRate) || monthlyRate < 0 || !creditForm.firstDueDate) return
+
+    const installmentValue = monthlyRate === 0
+      ? principal / installments
+      : (principal * monthlyRate) / (1 - (1 + monthlyRate) ** -installments)
+
+    const creditId = Date.now()
+    const loanTransactions: Transaction[] = [
+      {
+        id: creditId,
+        name: 'Crédito emprestado Nubank',
+        category: 'Crédito Nubank',
+        amount: principal,
+        date: selectedMonth + '-01',
+        type: 'income',
+      },
+      ...Array.from({ length: installments }, (_, index) => ({
+        id: creditId + index + 1,
+        name: `Crédito Nubank - parcela ${index + 1}/${installments}`,
+        category: 'Crédito Nubank',
+        amount: Number(installmentValue.toFixed(2)),
+        date: addMonthsToDate(creditForm.firstDueDate, index),
+        type: 'expense' as const,
+      })),
+    ]
+
+    setTransactions((current) => [...current, ...loanTransactions])
+    setCreditForm({ amount: '', interestRate: '', installments: '1', firstDueDate: `${selectedMonth}-01` })
   }
 
   const handleDeleteTransaction = (id: number) => {
@@ -732,6 +779,7 @@ function App() {
               <option>Transporte</option>
               <option>Casa/Apartamento/Aluguel</option>
               <option>Assinaturas</option>
+              <option>Crédito Nubank</option>
               <option>Salário</option>
             </select>
             <select
@@ -892,6 +940,43 @@ function App() {
             <button type="button" onClick={handleAddIncome} className="primary-action">
               + Nova entrada
             </button>
+          </div>
+
+          <div className="credit-box">
+            <div className="section-header">
+              <h3>Crédito emprestado Nubank</h3>
+              <small>Informe a taxa exibida no seu contrato para calcular as parcelas.</small>
+            </div>
+            <div className="form-grid compact-form">
+              <input
+                value={creditForm.amount}
+                onChange={(event) => setCreditForm({ ...creditForm, amount: formatCurrencyInput(event.target.value) })}
+                inputMode="numeric"
+                placeholder="Valor recebido: R$ 0,00"
+              />
+              <input
+                value={creditForm.interestRate}
+                onChange={(event) => setCreditForm({ ...creditForm, interestRate: event.target.value.replace(/[^\d,]/g, '') })}
+                inputMode="decimal"
+                placeholder="Juros mensal: 0,00%"
+              />
+              <input
+                value={creditForm.installments}
+                onChange={(event) => setCreditForm({ ...creditForm, installments: event.target.value.replace(/\D/g, '') })}
+                type="number"
+                min="1"
+                placeholder="Parcelas"
+              />
+              <input
+                value={creditForm.firstDueDate}
+                onChange={(event) => setCreditForm({ ...creditForm, firstDueDate: event.target.value })}
+                type="date"
+                title="Primeiro vencimento"
+              />
+              <button type="button" onClick={handleAddCreditLoan} className="primary-action">
+                Lançar crédito e parcelas
+              </button>
+            </div>
           </div>
 
           <div className="card-list">
