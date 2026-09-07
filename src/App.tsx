@@ -221,6 +221,8 @@ function App() {
     category: 'Comida',
     amount: '',
     type: 'expense' as 'expense' | 'income',
+    installments: '1',
+    firstDueDate: `${selectedMonth}-01`,
   })
 
   const [fixedForm, setFixedForm] = useState({
@@ -283,6 +285,14 @@ function App() {
       { name: 'Comida', total: 900, color: '#d76d4d' },
       { name: 'Lazer', total: 700, color: '#b7b1aa' },
       { name: 'Transporte', total: 500, color: '#cfcbc4' },
+      { name: 'Conta de Luz', total: 250, color: '#d8a85b' },
+      { name: 'Conta de Agua', total: 150, color: '#8aaec1' },
+      { name: 'Ração', total: 250, color: '#b58d70' },
+      { name: 'Medico', total: 500, color: '#b98585' },
+      { name: 'Remedios', total: 250, color: '#a89bbd' },
+      { name: 'Veterinario', total: 500, color: '#8ca58f' },
+      { name: 'Gasolina', total: 600, color: '#c17b61' },
+      { name: 'Mecanico', total: 800, color: '#7f8f9f' },
       { name: 'Casa/Apartamento/Aluguel', total: 400, color: '#d9d5cf' },
       { name: 'Assinaturas', total: 200, color: '#d76d4d' },
     ]
@@ -313,25 +323,28 @@ function App() {
 
   const handleAddTransaction = () => {
     const value = parseCurrencyInput(transactionForm.amount)
-    if (!transactionForm.name.trim() || value <= 0) return
+    const installments = transactionForm.type === 'expense' ? Math.max(1, Number(transactionForm.installments)) : 1
+    if (!transactionForm.name.trim() || value <= 0 || !transactionForm.firstDueDate) return
 
-    setTransactions((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        name: transactionForm.name,
-        category: transactionForm.category,
-        amount: value,
-        date: `${selectedMonth}-01`,
-        type: transactionForm.type,
-      },
-    ])
+    const installmentValue = Number((value / installments).toFixed(2))
+    const transactionsToAdd = Array.from({ length: installments }, (_, index) => ({
+      id: Date.now() + index,
+      name: installments > 1 ? `${transactionForm.name} - parcela ${index + 1}/${installments}` : transactionForm.name,
+      category: transactionForm.category,
+      amount: installmentValue,
+      date: addMonthsToDate(transactionForm.firstDueDate, index),
+      type: transactionForm.type,
+    }))
+
+    setTransactions((current) => [...current, ...transactionsToAdd])
 
     setTransactionForm({
       name: '',
       category: 'Comida',
       amount: '',
       type: 'expense',
+      installments: '1',
+      firstDueDate: `${selectedMonth}-01`,
     })
   }
 
@@ -780,6 +793,14 @@ function App() {
               <option>Comida</option>
               <option>Lazer</option>
               <option>Transporte</option>
+              <option>Conta de Luz</option>
+              <option>Conta de Agua</option>
+              <option>Ração</option>
+              <option>Medico</option>
+              <option>Remedios</option>
+              <option>Veterinario</option>
+              <option>Gasolina</option>
+              <option>Mecanico</option>
               <option>Casa/Apartamento/Aluguel</option>
               <option>Assinaturas</option>
               <option>Crédito Nubank</option>
@@ -797,6 +818,23 @@ function App() {
               <option value="expense">Despesa</option>
               <option value="income">Receita</option>
             </select>
+            {transactionForm.type === 'expense' && (
+              <>
+                <input
+                  value={transactionForm.installments}
+                  onChange={(event) => setTransactionForm({ ...transactionForm, installments: event.target.value.replace(/\D/g, '') })}
+                  type="number"
+                  min="1"
+                  placeholder="Parcelas"
+                />
+                <input
+                  value={transactionForm.firstDueDate}
+                  onChange={(event) => setTransactionForm({ ...transactionForm, firstDueDate: event.target.value })}
+                  type="date"
+                  title="Data da primeira parcela"
+                />
+              </>
+            )}
             <button type="button" onClick={handleAddTransaction} className="primary-action">
               Adicionar
             </button>
@@ -862,6 +900,14 @@ function App() {
               <option>Comida</option>
               <option>Lazer</option>
               <option>Transporte</option>
+              <option>Conta de Luz</option>
+              <option>Conta de Agua</option>
+              <option>Ração</option>
+              <option>Medico</option>
+              <option>Remedios</option>
+              <option>Veterinario</option>
+              <option>Gasolina</option>
+              <option>Mecanico</option>
               <option>Assinaturas</option>
               <option>Casa/Apartamento/Aluguel</option>
             </select>
