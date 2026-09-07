@@ -47,6 +47,9 @@ type Income = {
   name: string
   value: number
   date: string
+  category?: 'Salário' | 'Venda de produto' | 'Fonte de outra natureza'
+  observation?: string
+  effectiveFrom?: string
   recurring?: boolean
 }
 
@@ -76,8 +79,8 @@ const initialFixedExpenses: FixedExpense[] = [
 ]
 
 const initialIncomes: Income[] = [
-  { id: 1, name: 'Salário', value: 6500, date: '2026-08-01', recurring: true },
-  { id: 2, name: 'Freela', value: 900, date: '2026-08-12' },
+  { id: 1, name: 'Salário', value: 6500, date: '2026-08-01', category: 'Salário', effectiveFrom: '2026-08-01', recurring: true },
+  { id: 2, name: 'Freela', value: 900, date: '2026-08-12', category: 'Fonte de outra natureza', observation: 'Serviço freelance' },
 ]
 
 const initialGoals: Goal[] = [
@@ -111,15 +114,17 @@ const isSalary = (name: string) => name.toLowerCase().includes('salário') || na
 const addRecurringIncomeForMonth = (items: Income[], month: string) => {
   const recurringItems = [...new Map(
     items
-      .filter((item) => item.recurring || isSalary(item.name))
-      .map((item) => [item.name.toLowerCase(), item]),
+      .filter((item) => (item.recurring || isSalary(item.name)) && (item.effectiveFrom || item.date).slice(0, 7) <= month)
+      .sort((first, second) => (first.effectiveFrom || first.date).localeCompare(second.effectiveFrom || second.date))
+      .map((item) => [`${item.name.toLowerCase()}-${item.category || 'Salário'}`, item]),
   ).values()]
   const additions = recurringItems
-    .filter((item) => !items.some((candidate) => candidate.name === item.name && candidate.date.startsWith(month)))
+    .filter((item) => !items.some((candidate) => candidate.name === item.name && (candidate.category || 'Salário') === (item.category || 'Salário') && candidate.date.startsWith(month)))
     .map((item, index) => ({
       ...item,
       id: Date.now() + index,
       date: `${month}-01`,
+      effectiveFrom: item.effectiveFrom || item.date,
       recurring: true,
     }))
 
@@ -185,7 +190,12 @@ function App() {
         setSelectedMonth(data.selectedMonth ?? '2026-08')
         setTransactions((data.transactions ?? initialTransactions).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
         setFixedExpenses((data.fixedExpenses ?? initialFixedExpenses).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
-        setIncomes(addRecurringIncomeForMonth((data.incomes ?? initialIncomes).map((item) => ({ ...item, recurring: item.recurring || isSalary(item.name) })), data.selectedMonth ?? '2026-08'))
+        setIncomes(addRecurringIncomeForMonth((data.incomes ?? initialIncomes).map((item) => ({
+          ...item,
+          category: item.category || (isSalary(item.name) ? 'Salário' : 'Fonte de outra natureza'),
+          effectiveFrom: item.effectiveFrom || item.date,
+          recurring: item.recurring || isSalary(item.name),
+        })), data.selectedMonth ?? '2026-08'))
         setGoals(data.goals ?? initialGoals)
       })
       .finally(() => setIsHydrated(true))
@@ -217,6 +227,9 @@ function App() {
   const [incomeForm, setIncomeForm] = useState({
     name: '',
     value: '',
+    category: 'Salário' as Income['category'],
+    observation: '',
+    cutoffDate: '2026-08-01',
   })
 
   const monthTransactions = useMemo(
@@ -338,10 +351,19 @@ function App() {
 
     setIncomes((current) => [
       ...current,
-      { id: Date.now(), name: incomeForm.name, value, date: `${selectedMonth}-01`, recurring: isSalary(incomeForm.name) },
+      {
+        id: Date.now(),
+        name: incomeForm.name,
+        value,
+        date: incomeForm.cutoffDate,
+        category: incomeForm.category,
+        observation: incomeForm.observation.trim(),
+        effectiveFrom: incomeForm.cutoffDate,
+        recurring: incomeForm.category === 'Salário' || isSalary(incomeForm.name),
+      },
     ])
 
-    setIncomeForm({ name: '', value: '' })
+    setIncomeForm({ name: '', value: '', category: 'Salário', observation: '', cutoffDate: `${selectedMonth}-01` })
   }
 
   const handleDeleteTransaction = (id: number) => {
@@ -475,7 +497,12 @@ function App() {
         setSelectedMonth(imported.selectedMonth ?? '2026-08')
         setTransactions(imported.transactions.map((item: Transaction) => ({ ...item, category: normalizeCategory(item.category) })))
         setFixedExpenses(imported.fixedExpenses.map((item: FixedExpense) => ({ ...item, category: normalizeCategory(item.category) })))
-        setIncomes(imported.incomes.map((item: Income) => ({ ...item, recurring: item.recurring || isSalary(item.name) })))
+        setIncomes(imported.incomes.map((item: Income) => ({
+          ...item,
+          category: item.category || (isSalary(item.name) ? 'Salário' : 'Fonte de outra natureza'),
+          effectiveFrom: item.effectiveFrom || item.date,
+          recurring: item.recurring || isSalary(item.name),
+        })))
         setGoals(imported.goals)
       } catch {
         window.alert('Não foi possível importar este arquivo.')
@@ -835,12 +862,33 @@ function App() {
               onChange={(event) => setIncomeForm({ ...incomeForm, name: event.target.value })}
               placeholder="Fonte da entrada"
             />
+            <select
+              value={incomeForm.category}
+              onChange={(event) => setIncomeForm({ ...incomeForm, category: event.target.value as Income['category'] })}
+            >
+              <option>Salário</option>
+              <option>Venda de produto</option>
+              <option>Fonte de outra natureza</option>
+            </select>
             <input
               value={incomeForm.value}
               onChange={(event) => setIncomeForm({ ...incomeForm, value: formatCurrencyInput(event.target.value) })}
               inputMode="numeric"
               placeholder="R$ 0,00"
             />
+            <input
+              value={incomeForm.cutoffDate}
+              onChange={(event) => setIncomeForm({ ...incomeForm, cutoffDate: event.target.value })}
+              type="date"
+              title="Data de corte"
+            />
+            {incomeForm.category !== 'Salário' && (
+              <input
+                value={incomeForm.observation}
+                onChange={(event) => setIncomeForm({ ...incomeForm, observation: event.target.value })}
+                placeholder="Observação"
+              />
+            )}
             <button type="button" onClick={handleAddIncome} className="primary-action">
               + Nova entrada
             </button>
@@ -851,7 +899,8 @@ function App() {
               <div key={item.id} className="card-item">
                 <div>
                   <strong>{item.name}</strong>
-                  <span>{item.date}</span>
+                  <span>{item.category || 'Fonte de outra natureza'} · corte {item.effectiveFrom || item.date}</span>
+                  {item.observation && <span>{item.observation}</span>}
                 </div>
                 <strong>{formatCurrency(item.value)}</strong>
                 <button type="button" className="inline-button" onClick={() => handleDeleteIncome(item.id)}>
