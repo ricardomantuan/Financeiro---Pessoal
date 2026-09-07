@@ -1,33 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
 
-const STORAGE_KEY = 'finance-dashboard-v2'
-const USER_KEY = 'finance-user-v1'
+const TOKEN_KEY = 'finance-auth-token'
 
-const getStorageKey = (email: string) => `${STORAGE_KEY}:${email.toLowerCase()}`
-
-const loadStoredState = (email?: string) => {
-  if (!email) return null
-
-  const raw = localStorage.getItem(getStorageKey(email))
-  if (!raw) return null
-
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
+type User = {
+  id: number
+  name: string
+  email: string
 }
 
-const loadStoredUser = () => {
-  const raw = localStorage.getItem(USER_KEY)
-  if (!raw) return null
-
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
+const apiRequest = async <T,>(path: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const response = await fetch(`/api${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  })
+  const body = response.status === 204 ? null : await response.json()
+  if (!response.ok) throw new Error(body?.error || 'Não foi possível concluir a operação.')
+  return body as T
 }
 
 type Transaction = {
@@ -98,55 +92,64 @@ const formatMonth = (month: string) =>
   new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))
 
 function App() {
-  const [user, setUser] = useState(loadStoredUser())
-  const initialStoredState = loadStoredState(user?.email)
-  const [isHydrated, setIsHydrated] = useState(Boolean(user))
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' })
-  const [selectedTab, setSelectedTab] = useState(initialStoredState?.selectedTab ?? 'Resumo do mês')
-  const [selectedMonth, setSelectedMonth] = useState(initialStoredState?.selectedMonth ?? '2026-08')
-  const [transactions, setTransactions] = useState<Transaction[]>(initialStoredState?.transactions ?? initialTransactions)
-  const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>(initialStoredState?.fixedExpenses ?? initialFixedExpenses)
-  const [incomes, setIncomes] = useState<Income[]>(initialStoredState?.incomes ?? initialIncomes)
-  const [goals, setGoals] = useState<Goal[]>(initialStoredState?.goals ?? initialGoals)
+  const [user, setUser] = useState<User | null>(null)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login')
+  const [authMessage, setAuthMessage] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [loginForm, setLoginForm] = useState({ name: '', email: '', password: '' })
+  const [selectedTab, setSelectedTab] = useState('Resumo do mês')
+  const [selectedMonth, setSelectedMonth] = useState('2026-08')
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>(initialFixedExpenses)
+  const [incomes, setIncomes] = useState<Income[]>(initialIncomes)
+  const [goals, setGoals] = useState<Goal[]>(initialGoals)
   const importInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) {
+      setIsCheckingSession(false)
+      return
+    }
+
+    apiRequest<{ user: User }>('/auth/me')
+      .then(({ user: currentUser }) => setUser(currentUser))
+      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .finally(() => setIsCheckingSession(false))
+  }, [])
 
   useEffect(() => {
     if (!user) return
 
-    const storedState = loadStoredState(user.email)
-    if (storedState) {
-      setSelectedTab(storedState.selectedTab ?? 'Resumo do mês')
-      setSelectedMonth(storedState.selectedMonth ?? '2026-08')
-      setTransactions(storedState.transactions ?? initialTransactions)
-      setFixedExpenses(storedState.fixedExpenses ?? initialFixedExpenses)
-      setIncomes(storedState.incomes ?? initialIncomes)
-      setGoals(storedState.goals ?? initialGoals)
-    }
-
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
-    setIsHydrated(true)
-  }, [user])
-
-  useEffect(() => {
-    if (!user) {
-      setIsHydrated(false)
-    }
+    setIsHydrated(false)
+    apiRequest<{
+      selectedTab?: string
+      selectedMonth?: string
+      transactions: Transaction[]
+      fixedExpenses: FixedExpense[]
+      incomes: Income[]
+      goals: Goal[]
+    }>('/data')
+      .then((data) => {
+        setSelectedTab(data.selectedTab ?? 'Resumo do mês')
+        setSelectedMonth(data.selectedMonth ?? '2026-08')
+        setTransactions(data.transactions ?? initialTransactions)
+        setFixedExpenses(data.fixedExpenses ?? initialFixedExpenses)
+        setIncomes(data.incomes ?? initialIncomes)
+        setGoals(data.goals ?? initialGoals)
+      })
+      .finally(() => setIsHydrated(true))
   }, [user])
 
   useEffect(() => {
     if (!user || !isHydrated) return
 
-    localStorage.setItem(
-      getStorageKey(user.email),
-      JSON.stringify({
-        selectedTab,
-        selectedMonth,
-        transactions,
-        fixedExpenses,
-        incomes,
-        goals,
-      }),
-    )
+    void apiRequest('/data', {
+      method: 'PUT',
+      body: JSON.stringify({ selectedTab, selectedMonth, transactions, fixedExpenses, incomes, goals }),
+    })
   }, [user, isHydrated, selectedTab, selectedMonth, transactions, fixedExpenses, incomes, goals])
 
   const [transactionForm, setTransactionForm] = useState({
@@ -317,17 +320,38 @@ function App() {
     )
   }
 
-  const handleLogin = () => {
-    const email = loginForm.email.trim()
-    if (!email || !loginForm.password.trim()) return
+  const handleAuth = async () => {
+    setAuthMessage('')
+    setAuthBusy(true)
+    try {
+      if (authMode === 'forgot') {
+        const response = await apiRequest<{ message: string }>('/auth/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ email: loginForm.email }),
+        })
+        setAuthMessage(response.message)
+        return
+      }
 
-    setUser({ name: email.split('@')[0] || 'Usuário', email })
-    setLoginForm({ email: '', password: '' })
+      const endpoint = authMode === 'register' ? '/auth/register' : '/auth/login'
+      const response = await apiRequest<{ user: User; token: string }>(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(loginForm),
+      })
+      localStorage.setItem(TOKEN_KEY, response.token)
+      setUser(response.user)
+      setLoginForm({ name: '', email: '', password: '' })
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Não foi possível concluir.')
+    } finally {
+      setAuthBusy(false)
+    }
   }
 
   const handleLogout = () => {
-    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(TOKEN_KEY)
     setUser(null)
+    setIsHydrated(false)
   }
 
   const handleExport = () => {
@@ -381,12 +405,27 @@ function App() {
     event.target.value = ''
   }
 
+  if (isCheckingSession) {
+    return <div className="auth-view"><div className="auth-card"><p>Carregando sua sessão...</p></div></div>
+  }
+
   if (!user) {
     return (
       <div className="auth-view">
         <div className="auth-card">
           <h1>meu dinheiro</h1>
-          <p>Entre para ver seu painel financeiro</p>
+          <p>{authMode === 'register' ? 'Crie sua conta financeira' : authMode === 'forgot' ? 'Recupere o acesso à sua conta' : 'Entre para ver seu painel financeiro'}</p>
+
+          {authMode === 'register' && (
+            <label>
+              Nome
+              <input
+                value={loginForm.name}
+                onChange={(event) => setLoginForm({ ...loginForm, name: event.target.value })}
+                placeholder="Seu nome"
+              />
+            </label>
+          )}
 
           <label>
             E-mail
@@ -398,19 +437,29 @@ function App() {
             />
           </label>
 
-          <label>
-            Senha
-            <input
-              type="password"
-              value={loginForm.password}
-              onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
-              placeholder="********"
-            />
-          </label>
+          {authMode !== 'forgot' && (
+            <label>
+              Senha {authMode === 'register' && '(mínimo 8 caracteres)'}
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
+                placeholder="********"
+              />
+            </label>
+          )}
 
-          <button type="button" className="primary-action auth-button" onClick={handleLogin}>
-            Entrar
+          {authMessage && <p className="auth-message">{authMessage}</p>}
+
+          <button type="button" className="primary-action auth-button" onClick={handleAuth} disabled={authBusy}>
+            {authBusy ? 'Aguarde...' : authMode === 'register' ? 'Criar conta' : authMode === 'forgot' ? 'Enviar instruções' : 'Entrar'}
           </button>
+
+          <div className="auth-links">
+            {authMode !== 'login' && <button type="button" onClick={() => { setAuthMode('login'); setAuthMessage('') }}>Voltar para entrar</button>}
+            {authMode === 'login' && <button type="button" onClick={() => { setAuthMode('register'); setAuthMessage('') }}>Criar uma conta</button>}
+            {authMode === 'login' && <button type="button" onClick={() => { setAuthMode('forgot'); setAuthMessage('') }}>Esqueci minha senha</button>}
+          </div>
         </div>
       </div>
     )
