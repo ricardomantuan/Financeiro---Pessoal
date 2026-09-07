@@ -232,8 +232,8 @@ function App() {
   }, [monthTransactions])
 
   const alerts = [
-    { label: 'Fatura do cartão fecha em 3 dias', action: 'Revisar' },
-    { label: 'Aluguel ainda não caiu', action: 'Marcar pago' },
+    { label: 'Fatura do cartão fecha em 3 dias', action: 'Revisar', kind: 'review' as const },
+    { label: 'Aluguel ainda não caiu', action: 'Marcar pago', kind: 'mark-rent' as const },
   ]
 
   const recentTransactions = useMemo(
@@ -319,6 +319,18 @@ function App() {
     setFixedExpenses((current) =>
       current.map((item) => (item.id === id ? { ...item, paid: !item.paid } : item)),
     )
+  }
+
+  const handleReviewFixedExpenses = () => {
+    setSelectedTab('Gastos fixos')
+  }
+
+  const handleMarkRentPaid = () => {
+    const rent = fixedExpenses.find((item) => item.name.toLowerCase().includes('aluguel'))
+    const firstPending = fixedExpenses.find((item) => !item.paid)
+    const target = rent ?? firstPending
+    if (target && !target.paid) handleToggleFixedExpense(target.id)
+    setSelectedTab('Gastos fixos')
   }
 
   const handleDeleteIncome = (id: number) => {
@@ -595,7 +607,11 @@ function App() {
                 {alerts.map((alert) => (
                   <div key={alert.label} className="alert-item">
                     <span>{alert.label}</span>
-                    <button type="button" className="inline-button">
+                    <button
+                      type="button"
+                      className="inline-button"
+                      onClick={alert.kind === 'review' ? handleReviewFixedExpenses : handleMarkRentPaid}
+                    >
                       {alert.action}
                     </button>
                   </div>
