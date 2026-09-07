@@ -47,6 +47,7 @@ type Income = {
   name: string
   value: number
   date: string
+  recurring?: boolean
 }
 
 type Goal = {
@@ -75,7 +76,7 @@ const initialFixedExpenses: FixedExpense[] = [
 ]
 
 const initialIncomes: Income[] = [
-  { id: 1, name: 'Salário', value: 6500, date: '2026-08-01' },
+  { id: 1, name: 'Salário', value: 6500, date: '2026-08-01', recurring: true },
   { id: 2, name: 'Freela', value: 900, date: '2026-08-12' },
 ]
 
@@ -93,6 +94,26 @@ const formatMonth = (month: string) =>
 
 const normalizeCategory = (category: string) =>
   category === 'Casa' ? 'Casa/Apartamento/Aluguel' : category
+
+const isSalary = (name: string) => name.toLowerCase().includes('salário') || name.toLowerCase().includes('salario')
+
+const addRecurringIncomeForMonth = (items: Income[], month: string) => {
+  const recurringItems = [...new Map(
+    items
+      .filter((item) => item.recurring || isSalary(item.name))
+      .map((item) => [item.name.toLowerCase(), item]),
+  ).values()]
+  const additions = recurringItems
+    .filter((item) => !items.some((candidate) => candidate.name === item.name && candidate.date.startsWith(month)))
+    .map((item, index) => ({
+      ...item,
+      id: Date.now() + index,
+      date: `${month}-01`,
+      recurring: true,
+    }))
+
+  return additions.length ? [...items, ...additions] : items
+}
 
 function App() {
   const authToken = new URLSearchParams(window.location.search).get('auth_token')
@@ -153,7 +174,7 @@ function App() {
         setSelectedMonth(data.selectedMonth ?? '2026-08')
         setTransactions((data.transactions ?? initialTransactions).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
         setFixedExpenses((data.fixedExpenses ?? initialFixedExpenses).map((item) => ({ ...item, category: normalizeCategory(item.category) })))
-        setIncomes(data.incomes ?? initialIncomes)
+        setIncomes(addRecurringIncomeForMonth((data.incomes ?? initialIncomes).map((item) => ({ ...item, recurring: item.recurring || isSalary(item.name) })), data.selectedMonth ?? '2026-08'))
         setGoals(data.goals ?? initialGoals)
       })
       .finally(() => setIsHydrated(true))
@@ -247,7 +268,9 @@ function App() {
   const moveMonth = (offset: number) => {
     const date = new Date(`${selectedMonth}-01T12:00:00`)
     date.setMonth(date.getMonth() + offset)
-    setSelectedMonth(date.toISOString().slice(0, 7))
+    const nextMonth = date.toISOString().slice(0, 7)
+    setIncomes((current) => addRecurringIncomeForMonth(current, nextMonth))
+    setSelectedMonth(nextMonth)
   }
 
   const handleAddTransaction = () => {
@@ -304,7 +327,7 @@ function App() {
 
     setIncomes((current) => [
       ...current,
-      { id: Date.now(), name: incomeForm.name, value, date: `${selectedMonth}-01` },
+      { id: Date.now(), name: incomeForm.name, value, date: `${selectedMonth}-01`, recurring: isSalary(incomeForm.name) },
     ])
 
     setIncomeForm({ name: '', value: '' })
@@ -441,7 +464,7 @@ function App() {
         setSelectedMonth(imported.selectedMonth ?? '2026-08')
         setTransactions(imported.transactions.map((item: Transaction) => ({ ...item, category: normalizeCategory(item.category) })))
         setFixedExpenses(imported.fixedExpenses.map((item: FixedExpense) => ({ ...item, category: normalizeCategory(item.category) })))
-        setIncomes(imported.incomes)
+        setIncomes(imported.incomes.map((item: Income) => ({ ...item, recurring: item.recurring || isSalary(item.name) })))
         setGoals(imported.goals)
       } catch {
         window.alert('Não foi possível importar este arquivo.')
